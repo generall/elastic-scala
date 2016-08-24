@@ -8,7 +8,6 @@ class MentionSearcherTest extends FunSuite {
   test("testFindMentions") {
     val searcher = new MentionSearcher("localhost", 9300)
     val res = searcher.findMentions("Titanic")
-    res.variants.foreach(println)
     res.stats.foreach(println)
   }
 

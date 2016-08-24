@@ -19,20 +19,23 @@ case class ConceptVariant(
                            count: Int,
                            avgScore: Double,
                            maxScore: Double,
-                           minScore: Double
+                           minScore: Double,
+                           var avgNorm: Double = 0.0,
+                           var avgSoftMax: Double = 0.0
                          ) {}
 
-class MentionSearchResult(_vars: Iterable[ConceptVariant]){
-  val variants = _vars
-
-
+class MentionSearchResult(_vars: Iterable[ConceptVariant])(filterPredicate: (ConceptVariant => Boolean)) {
   val stats = {
     val avgs = _vars.map(_.avgScore)
     val avgsNorm = ProbTools.normalize(avgs)
     val avgsSotfMax = ProbTools.softMax(avgs)
-    _vars.map(_.concept).zip( avgsNorm.zip(avgsSotfMax) ).toMap
+    _vars.zip(avgsNorm.zip(avgsSotfMax)).map({ case (variant, (norm, softMax)) => {
+      variant.avgSoftMax = softMax
+      variant.avgNorm = norm
+      variant
+    }
+    }).filter(filterPredicate)
   }
-
 
 
 }
@@ -61,6 +64,12 @@ class MentionSearcher(host: String, port: Int) {
 
   var client = ElasticClient.transport(ElasticsearchClientUri("localhost", 9300))
 
+  val thresholdCount = 1
+
+  def filterResult(x: ConceptVariant): Boolean = {
+    if (x.count <= thresholdCount) return false
+    true
+  }
 
   def calcStat(concept: String, list: Iterable[(String, Float)]): ConceptVariant = {
     val size = list.size
@@ -84,7 +93,7 @@ class MentionSearcher(host: String, port: Int) {
       .groupBy(_._1)
       .map({ case (concept, pairs) => calcStat(concept, pairs) })
 
-    new MentionSearchResult(resScores)
+    new MentionSearchResult(resScores)(filterResult)
   }
 
   def findHref(hrefToFind: String): List[Sentence] = {
