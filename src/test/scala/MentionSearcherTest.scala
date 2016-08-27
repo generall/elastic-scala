@@ -1,3 +1,4 @@
+import ml.generall.elastic.MentionSearcher
 import org.scalatest.FunSuite
 
 /**

@@ -1,3 +1,4 @@
+import ml.generall.elastic.ProbTools
 import org.scalatest.FunSuite
 
 /**

@@ -1,3 +1,5 @@
+package ml.generall.elastic
+
 /**
   * Created by generall on 24.08.16.
   */

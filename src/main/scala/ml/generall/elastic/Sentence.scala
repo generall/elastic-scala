@@ -1,3 +1,5 @@
+package ml.generall.elastic
+
 
 
 case class Chunk(text: String, href: String = null){

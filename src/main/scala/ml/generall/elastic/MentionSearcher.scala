@@ -1,3 +1,5 @@
+package ml.generall.elastic
+
 import java.util
 
 import com.sksamuel.elastic4s.ElasticDsl._
@@ -36,8 +38,6 @@ class MentionSearchResult(_vars: Iterable[ConceptVariant])(filterPredicate: (Con
     }
     }).filter(filterPredicate)
   }
-
-
 }
 
 class MentionSearcher(host: String, port: Int) {
