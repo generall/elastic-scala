@@ -62,7 +62,7 @@ class MentionSearcher(host: String, port: Int) {
     }
   }
 
-  var client = ElasticClient.transport(ElasticsearchClientUri("localhost", 9300))
+  var client = ElasticClient.transport(ElasticsearchClientUri(host, port))
 
   val thresholdCount = 1
 
