@@ -40,7 +40,7 @@ class MentionSearchResult(_vars: Iterable[ConceptVariant])(filterPredicate: (Con
   }
 }
 
-class MentionSearcher(host: String, port: Int) {
+class MentionSearcher(host: String, port: Int, index: String = "wiki") {
 
   implicit object MentionHitAs extends HitAs[Mention] {
     override def as(hit: RichSearchHit): Mention = {
@@ -66,6 +66,10 @@ class MentionSearcher(host: String, port: Int) {
 
   val thresholdCount = 1
 
+  val mentionLimit = 25
+
+  val hrefLimit = 50
+
   def filterResult(x: ConceptVariant): Boolean = {
     if (x.count <= thresholdCount) return false
     true
@@ -84,9 +88,9 @@ class MentionSearcher(host: String, port: Int) {
 
   def findMentions(mentionText: String): MentionSearchResult = {
     val resp = client.execute {
-      search in "wiki" -> "mention" query {
+      search in index -> "mention" query {
         matchQuery("anchor_text", mentionText)
-      }
+      } limit mentionLimit
     }.await
 
     val resScores = resp.as[(String, Float)]
@@ -98,11 +102,36 @@ class MentionSearcher(host: String, port: Int) {
 
   def findHref(hrefToFind: String): List[Sentence] = {
     val resp = client.execute {
-      search in "wiki" -> "mention" query {
+      search in index -> "mention" query {
         matchQuery("concept", hrefToFind)
-      }
+      } limit hrefLimit
     }.await
     resp.as[Mention].map(new Sentence(_)).toList
   }
 
+  def findHrefWithContext(hrefToFind: String, leftContext: String, rightContext: String) = {
+    val resp = client.execute {
+      search in index -> "mention" query {
+        bool (
+          should(
+            matchQuery("context.left" -> leftContext),
+            matchQuery("context.right" -> rightContext)
+          )
+          filter(
+            termQuery("concept", hrefToFind)
+          )
+        )
+      } limit hrefLimit
+    }.await
+    resp.as[Mention].map(new Sentence(_)).toList
+  }
+
+  def innerFieldRequest(str:String): List[Sentence] = {
+    val resp = client.execute {
+      search in index -> "mention" query {
+        matchQuery("context.right", str)
+      }
+    }.await
+    resp.as[Mention].map(new Sentence(_)).toList
+  }
 }
