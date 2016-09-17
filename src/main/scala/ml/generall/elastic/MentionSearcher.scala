@@ -18,10 +18,10 @@ case class Mention(left: String, middle: String, right: String, href: String, we
 
 case class ConceptVariant(
                            concept: String,
-                           count: Int,
-                           avgScore: Double,
-                           maxScore: Double,
-                           minScore: Double,
+                           count: Int = 1,
+                           avgScore: Double = 1.0,
+                           maxScore: Double = 1.0,
+                           minScore: Double = 1.0,
                            var avgNorm: Double = 0.0,
                            var avgSoftMax: Double = 0.0
                          ) {}
@@ -40,7 +40,14 @@ class MentionSearchResult(_vars: Iterable[ConceptVariant])(filterPredicate: (Con
   }
 }
 
-class MentionSearcher(host: String, port: Int, index: String = "wiki") {
+class MentionSearcher(
+                       host: String,
+                       port: Int,
+                       index: String = "wiki",
+                       thresholdCount: Int = 1,
+                       mentionLimit: Int = 25,
+                       hrefLimit: Int = 50
+                     ) {
 
   implicit object MentionHitAs extends HitAs[Mention] {
     override def as(hit: RichSearchHit): Mention = {
@@ -64,11 +71,6 @@ class MentionSearcher(host: String, port: Int, index: String = "wiki") {
 
   var client = ElasticClient.transport(ElasticsearchClientUri(host, port))
 
-  val thresholdCount = 1
-
-  val mentionLimit = 25
-
-  val hrefLimit = 50
 
   def filterResult(x: ConceptVariant): Boolean = {
     if (x.count <= thresholdCount) return false
