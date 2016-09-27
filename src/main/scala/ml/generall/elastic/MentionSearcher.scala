@@ -4,6 +4,7 @@ import java.util
 
 import com.sksamuel.elastic4s.ElasticDsl._
 import com.sksamuel.elastic4s.{ElasticClient, ElasticsearchClientUri, HitAs, RichSearchHit}
+import ml.generall.isDebug
 
 import scala.collection.JavaConversions._
 
@@ -73,8 +74,10 @@ class MentionSearcher(
 
 
   def filterResult(x: ConceptVariant): Boolean = {
-    if (x.count <= thresholdCount) return false
-    true
+    if (x.count <= thresholdCount) {
+      if(isDebug()) println(s"Filter concept: ${x.concept}" )
+      false
+    } else true
   }
 
   def calcStat(concept: String, list: Iterable[(String, Float)]): ConceptVariant = {
@@ -114,21 +117,21 @@ class MentionSearcher(
   def findHrefWithContext(hrefToFind: String, leftContext: String, rightContext: String) = {
     val resp = client.execute {
       search in index -> "mention" query {
-        bool (
+        bool(
           should(
             matchQuery("context.left" -> leftContext),
             matchQuery("context.right" -> rightContext)
           )
-          filter(
+            filter (
             termQuery("concept", hrefToFind)
-          )
+            )
         )
       } limit hrefLimit
     }.await
     resp.as[Mention].map(new Sentence(_)).toList
   }
 
-  def innerFieldRequest(str:String): List[Sentence] = {
+  def innerFieldRequest(str: String): List[Sentence] = {
     val resp = client.execute {
       search in index -> "mention" query {
         matchQuery("context.right", str)
