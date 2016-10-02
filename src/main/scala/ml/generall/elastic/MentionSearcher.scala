@@ -13,20 +13,6 @@ import scala.collection.JavaConversions._
   */
 
 
-case class Mention(left: String, middle: String, right: String, href: String, weight: Double) {
-
-}
-
-case class ConceptVariant(
-                           concept: String,
-                           count: Int = 1,
-                           avgScore: Double = 1.0,
-                           maxScore: Double = 1.0,
-                           minScore: Double = 1.0,
-                           var avgNorm: Double = 0.0,
-                           var avgSoftMax: Double = 0.0
-                         ) {}
-
 class MentionSearchResult(_vars: Iterable[ConceptVariant])(filterPredicate: (ConceptVariant => Boolean)) {
   val stats = {
     val avgs = _vars.map(_.avgScore)
@@ -42,33 +28,13 @@ class MentionSearchResult(_vars: Iterable[ConceptVariant])(filterPredicate: (Con
 }
 
 class MentionSearcher(
-                       host: String,
-                       port: Int,
-                       index: String = "wiki",
-                       thresholdCount: Int = 1,
-                       mentionLimit: Int = 25,
-                       hrefLimit: Int = 50
-                     ) {
-
-  implicit object MentionHitAs extends HitAs[Mention] {
-    override def as(hit: RichSearchHit): Mention = {
-      //hit.sourceAsMap("name").toString, hit.sourceAsMap("location").toString
-      val context = mapAsScalaMap(hit.sourceAsMap("context").asInstanceOf[util.HashMap[String, String]])
-      Mention(
-        context("left"),
-        context("middle"),
-        context("right"),
-        hit.sourceAsMap("concept").toString,
-        hit.getScore
-      )
-    }
-  }
-
-  implicit object TupleHitAs extends HitAs[(String, Float)] {
-    override def as(hit: RichSearchHit): (String, Float) = {
-      (hit.sourceAsMap("concept").toString, hit.getScore)
-    }
-  }
+                       val host: String,
+                       val port: Int,
+                       val index: String = "wiki",
+                       val thresholdCount: Int = 1,
+                       val mentionLimit: Int = 25,
+                       val hrefLimit: Int = 50
+                     ) extends MentionSearcherAbs{
 
   var client = ElasticClient.transport(ElasticsearchClientUri(host, port))
 
@@ -122,9 +88,7 @@ class MentionSearcher(
             matchQuery("context.left" -> leftContext),
             matchQuery("context.right" -> rightContext)
           )
-            filter (
-            termQuery("concept", hrefToFind)
-            )
+            filter termQuery("concept", hrefToFind)
         )
       } limit hrefLimit
     }.await
