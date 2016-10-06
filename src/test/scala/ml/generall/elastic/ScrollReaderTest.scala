@@ -21,4 +21,17 @@ class ScrollReaderTest extends FunSuite {
 
   }
 
+
+  test("testPages") {
+    val searcher = new ScrollReader()
+
+
+    (0 to 20) foreach {_ =>
+      val res1 = searcher.readScroll(2)
+      res1.foreach(x => println(x.href))
+      println(" --- ")
+    }
+
+  }
+
 }
