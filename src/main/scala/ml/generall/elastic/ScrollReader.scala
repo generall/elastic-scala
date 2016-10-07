@@ -63,6 +63,10 @@ class ScrollReader(
     processRequest(lim)
   }
 
+  def skipMany(times: Int, lim: Int = 100) = {
+    (1 to times).foreach(_ => skip(lim))
+  }
+
   def dispatch(): Option[Mention] = {
     this.synchronized {
       if (pool.isEmpty) readScroll()
