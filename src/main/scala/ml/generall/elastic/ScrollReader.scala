@@ -4,7 +4,9 @@ import java.util
 
 import com.sksamuel.elastic4s._
 import com.sksamuel.elastic4s.ElasticDsl._
+import org.elasticsearch.common.text.Text
 import scala.collection.JavaConversions._
+import scala.reflect.io.File
 
 
 /**
@@ -25,13 +27,22 @@ class ScrollReader(
 
   var currentOffset = 0
   var currentLimit = 0
+  var lastUid: Option[String] = None
 
-  def makeRequest(lim: Int) = scrollId match {
+  def makeRequest(lim: Int, fromUId: Option[String]) = scrollId match {
     case None => {
+      println(fromUId.orElse(lastUid))
       val res = client.execute {
-        search in index -> "mention" sort (
-          field sort "_id"
-          ) scroll "10m" limit lim
+        fromUId.orElse(lastUid) match {
+          case Some(uid) => search in index -> "mention" query {
+            bool(
+              filter(
+                rangeQuery("_uid") from uid
+              )
+            )
+          } sort ( field sort "_uid" ) scroll "10m" size lim
+          case None => search in index -> "mention" sort ( field sort "_uid" ) scroll "10m" size lim
+        }
       }.await
       scrollId = res.scrollIdOpt
       res
@@ -42,18 +53,19 @@ class ScrollReader(
       }.await
   }
 
-  def processRequest(lim: Int = 100): RichSearchResponse = {
+  def processRequest(lim: Int = 100, fromUId: Option[String] = None): RichSearchResponse = {
     if (currentLimit == 0)
       currentLimit = lim
     else
       assert(currentLimit == lim)
-    val res = makeRequest(lim)
+    val res: RichSearchResponse = makeRequest(lim, fromUId)
+    lastUid = Some(res.getHits.head.sortValues().head.asInstanceOf[Text].string())
     currentOffset += res.getHits.size
     res
   }
 
-  def readScroll(lim: Int = 100) = {
-    val res = processRequest(lim)
+  def readScroll(lim: Int = 100, fromUId: Option[String] = None) = {
+    val res = processRequest(lim, fromUId)
     val mentions = res.as[Mention].toList
     pool = mentions ++ pool
     mentions
@@ -69,7 +81,10 @@ class ScrollReader(
 
   def dispatch(): Option[Mention] = {
     this.synchronized {
-      if (pool.isEmpty) readScroll()
+      if (pool.isEmpty) {
+        readScroll()
+        File("./dispatcher_offset.txt").appendAll(s"$currentOffset $lastUid\n")
+      }
       pool match {
         case head :: tail => {
           pool = tail
