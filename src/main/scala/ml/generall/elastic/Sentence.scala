@@ -15,7 +15,7 @@ class Sentence() {
 
   var chunks: List[Chunk] = List()
 
-  def sentence = chunks.map(_.text).mkString(" | ")
+  def sentence: String = chunks.map(_.text).mkString(" | ")
 
   def this(mention: Mention) = {
     this()

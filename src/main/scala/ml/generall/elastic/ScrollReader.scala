@@ -2,9 +2,10 @@ package ml.generall.elastic
 
 import java.util
 
-import com.sksamuel.elastic4s._
 import com.sksamuel.elastic4s.ElasticDsl._
-import org.elasticsearch.common.text.Text
+import com.sksamuel.elastic4s.{ElasticsearchClientUri, TcpClient}
+import com.sksamuel.elastic4s.searches.RichSearchResponse
+
 import scala.collection.JavaConversions._
 import scala.reflect.io.File
 
@@ -19,7 +20,7 @@ class ScrollReader(
                   ) extends MentionSearcherAbs {
 
 
-  var client = ElasticClient.transport(ElasticsearchClientUri(host, port))
+  var client = TcpClient.transport(ElasticsearchClientUri(host, port))
 
   var scrollId: Option[String] = None
 
@@ -34,14 +35,14 @@ class ScrollReader(
       println(fromUId.orElse(lastUid))
       val res = client.execute {
         fromUId.orElse(lastUid) match {
-          case Some(uid) => search in index -> "mention" query {
+          case Some(uid) => search(index / "mention") query {
             bool(
               filter(
                 rangeQuery("_uid") from uid
               )
             )
-          } sort ( field sort "_uid" ) scroll "10m" size lim
-          case None => search in index -> "mention" sort ( field sort "_uid" ) scroll "10m" size lim
+          } sortBy fieldSort("_uid") scroll "10m" size lim
+          case None => search(index / "mention") sortBy fieldSort("_uid") scroll "10m" size lim
         }
       }.await
       scrollId = res.scrollIdOpt
@@ -49,7 +50,7 @@ class ScrollReader(
     }
     case Some(thisScrollId) =>
       client.execute {
-        search scroll thisScrollId keepAlive "10m"
+        searchScroll(thisScrollId) keepAlive "10m"
       }.await
   }
 
@@ -59,14 +60,14 @@ class ScrollReader(
     else
       assert(currentLimit == lim)
     val res: RichSearchResponse = makeRequest(lim, fromUId)
-    lastUid = Some(res.getHits.head.sortValues().head.asInstanceOf[Text].string())
-    currentOffset += res.getHits.size
+    lastUid = Some(res.ids.max)
+    currentOffset += res.hits.size
     res
   }
 
   def readScroll(lim: Int = 100, fromUId: Option[String] = None) = {
     val res = processRequest(lim, fromUId)
-    val mentions = res.as[Mention].toList
+    val mentions = res.to[Mention].toList
     pool = mentions ++ pool
     mentions
   }

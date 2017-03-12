@@ -1,9 +1,9 @@
-import com.sksamuel.elastic4s.{ElasticsearchClientUri, ElasticClient}
+import com.sksamuel.elastic4s.{ElasticClient, ElasticsearchClientUri, TcpClient}
 import com.sksamuel.elastic4s.ElasticDsl._
 
 object Test extends App {
 
-  val client = ElasticClient.transport(ElasticsearchClientUri("localhost", 9300))
+  val client = TcpClient.transport(ElasticsearchClientUri("localhost", 9300))
 
   // await is a helper method to make this operation synchronous instead of async
   // You would normally avoid doing this in a real program as it will block your thread
@@ -17,7 +17,7 @@ object Test extends App {
   //Thread.sleep(2000)
 
   // now we can search for the document we indexed earlier
-  val resp = client.execute { search in "wiki" -> "mention" query { matchQuery("anchor_text" , "titanic") } }.await
+  val resp = client.execute { search( "wiki" / "mention" ) query { matchQuery("anchor_text" , "titanic") } }.await
   println(resp)
 
 }

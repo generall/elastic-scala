@@ -3,7 +3,8 @@ package ml.generall.elastic
 import java.util
 
 import com.sksamuel.elastic4s.ElasticDsl._
-import com.sksamuel.elastic4s.{ElasticClient, ElasticsearchClientUri, HitAs, RichSearchHit}
+import com.sksamuel.elastic4s.{ElasticsearchClientUri, HitReader, TcpClient}
+import com.sksamuel.elastic4s.searches.RichSearchResponse
 import ml.generall.isDebug
 
 import scala.collection.JavaConversions._
@@ -14,7 +15,7 @@ import scala.collection.JavaConversions._
 
 
 class MentionSearchResult(_vars: Iterable[ConceptVariant])(filterPredicate: (ConceptVariant => Boolean)) {
-  val stats = {
+  val stats: Iterable[ConceptVariant] = {
     val avgs = _vars.map(_.avgScore)
     val avgsNorm = ProbTools.normalize(avgs)
     val avgsSotfMax = ProbTools.softMax(avgs)
@@ -34,14 +35,14 @@ class MentionSearcher(
                        val thresholdCount: Int = 1,
                        val mentionLimit: Int = 25,
                        val hrefLimit: Int = 50
-                     ) extends MentionSearcherAbs{
+                     ) extends MentionSearcherAbs {
 
-  var client = ElasticClient.transport(ElasticsearchClientUri(host, port))
+  var client: TcpClient = TcpClient.transport(ElasticsearchClientUri(host, port))
 
 
   def filterResult(x: ConceptVariant): Boolean = {
     if (x.count <= thresholdCount) {
-      if(isDebug()) println(s"Filter concept: ${x.concept}" )
+      if (isDebug()) println(s"Filter concept: ${x.concept}")
       false
     } else true
   }
@@ -59,12 +60,12 @@ class MentionSearcher(
 
   def findMentions(mentionText: String): MentionSearchResult = {
     val resp = client.execute {
-      search in index -> "mention" query {
+      search(index / "mention") query {
         matchQuery("anchor_text", mentionText)
       } limit mentionLimit
     }.await
 
-    val resScores = resp.as[(String, Float)]
+    val resScores = resp.to[String].zip(resp.hits.map(_.score))
       .groupBy(_._1)
       .map({ case (concept, pairs) => calcStat(concept, pairs) })
 
@@ -73,34 +74,37 @@ class MentionSearcher(
 
   def findHref(hrefToFind: String): List[Sentence] = {
     val resp = client.execute {
-      search in index -> "mention" query {
+      search(index / "mention") query {
         matchQuery("concept", hrefToFind)
       } limit hrefLimit
     }.await
-    resp.as[Mention].map(new Sentence(_)).toList
+    resp.to[Mention].map(new Sentence(_)).toList
   }
 
-  def findHrefWithContext(hrefToFind: String, leftContext: String, rightContext: String) = {
+  def findHrefWithContext(hrefToFind: String, leftContext: String, rightContext: String): List[Sentence] = {
     val resp = client.execute {
-      search in index -> "mention" query {
-        bool(
-          should(
-            matchQuery("context.left" -> leftContext),
-            matchQuery("context.right" -> rightContext)
-          )
-            filter termQuery("concept", hrefToFind)
-        )
+      search(index / "mention") query {
+        boolQuery().should(
+            matchQuery("context.left", leftContext),
+            matchQuery("context.right", rightContext)
+          ) filter termQuery("concept", hrefToFind)
       } limit hrefLimit
     }.await
-    resp.as[Mention].map(new Sentence(_)).toList
+    resp.to[Mention].map(new Sentence(_)).toList
   }
 
   def innerFieldRequest(str: String): List[Sentence] = {
     val resp = client.execute {
-      search in index -> "mention" query {
+      search(index / "mention") query {
         matchQuery("context.right", str)
       }
     }.await
-    resp.as[Mention].map(new Sentence(_)).toList
+    resp.to[Mention].map(new Sentence(_)).toList
   }
+
+  def customSearch[T](query: TcpClient => RichSearchResponse)(implicit hitas: HitReader[T], manifest: Manifest[T]): List[(T, Float)] = {
+    val resp = query(client)
+    resp.hits.map(x => (x.to[T], x.score)).toList
+  }
+
 }
