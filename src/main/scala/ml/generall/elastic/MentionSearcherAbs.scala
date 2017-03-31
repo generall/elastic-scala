@@ -18,17 +18,6 @@ case class Mention(
 
 }
 
-case class ConceptVariant(
-                           concept: String,
-                           count: Int = 1,
-                           avgScore: Double = 1.0,
-                           maxScore: Double = 1.0,
-                           minScore: Double = 1.0,
-                           var avgNorm: Double = 0.0,
-                           var avgSoftMax: Double = 0.0
-                         ) {}
-
-
 /**
   * Created by generall on 02.10.16.
   */
